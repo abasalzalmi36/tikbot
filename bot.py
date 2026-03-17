@@ -32,27 +32,15 @@ def fetch_options(tiktok_url: str) -> dict | None:
     html = data["data"]
     options = {}
 
-    # Full HD
-    hd = re.search(
-        r'href="(https://dl\.snapcdn\.app/get\?token=[^"]+)"[^>]*>\s*<i[^>]*></i>\s*Download MP4 HD',
-        html
-    )
+    hd = re.search(r'href="(https://dl\.snapcdn\.app/get\?token=[^"]+)"[^>]*><i[^>]*></i> Download MP4 HD', html)
     if hd:
         options["Full HD 🎬"] = hd.group(1)
 
-    # جودة عادية - خذ أول رابط MP4 بس
-    normal = re.search(
-        r'href="(https://(?:dl\.snapcdn\.app/get\?token=|[^"]*tiktokcdn[^"]*)[^"]+)"[^>]*>\s*<i[^>]*></i>\s*Download MP4 \[1\]',
-        html
-    )
-    if normal:
-        options["SD 📱"] = normal.group(1)
+    sd = re.search(r'href="(https://dl\.snapcdn\.app/get\?token=[^"]+)"[^>]*><i[^>]*></i> Download MP4 \[1\]', html)
+    if sd:
+        options["SD 📱"] = sd.group(1)
 
-    # MP3
-    mp3 = re.search(
-        r'href="(https://dl\.snapcdn\.app/get\?token=[^"]+)"[^>]*>\s*<i[^>]*></i>\s*Download MP3',
-        html
-    )
+    mp3 = re.search(r'href="(https://dl\.snapcdn\.app/get\?token=[^"]+)"[^>]*><i[^>]*></i> Download MP3', html)
     if mp3:
         options["MP3 🎵"] = mp3.group(1)
 
@@ -66,7 +54,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
+    url = update.message.text.strip().split("?")[0]
 
     if "tiktok.com" not in url:
         await update.message.reply_text("❌ أرسل رابط TikTok صحيح!")
@@ -81,10 +69,12 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text("❌ ما قدرت أجيب خيارات الفيديو.")
         return
 
-    context.bot_data[url] = options
+    # خزّن بـ ID قصير بدل الرابط الطويل
+    session_id = uuid.uuid4().hex[:8]
+    context.bot_data[session_id] = options
 
     buttons = [
-        [InlineKeyboardButton(label, callback_data=f"{url}||{label}")]
+        [InlineKeyboardButton(label, callback_data=f"{session_id}||{label}")]
         for label in options
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -100,8 +90,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "||" not in data:
         return
 
-    tiktok_url, label = data.split("||", 1)
-    options = context.bot_data.get(tiktok_url)
+    session_id, label = data.split("||", 1)
+    options = context.bot_data.get(session_id)
 
     if not options or label not in options:
         await query.edit_message_text("❌ انتهت صلاحية الخيارات، أرسل الرابط مرة ثانية.")
